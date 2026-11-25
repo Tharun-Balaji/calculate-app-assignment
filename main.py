@@ -1,43 +1,76 @@
 import os
 from dotenv import load_dotenv
 from google import genai
-# TODO: Import SYSTEM_PROMPT from utils.config
-# TODO: Import parse_function_call from utils.parser
+from utils.config import SYSTEM_PROMPT, add_numbers_mock, subtract_numbers_mock
+from utils.parser import parse_function_call
 
-# TODO: Load environment variables
+load_dotenv()
 
 class CalculatorAssistant:
     
     def __init__(self, api_key=None):
-        # TODO: Initialize API key from parameter or env var GEMINI_API_KEY
-        # TODO: Raise ValueError if no key found
-        # TODO: Initialize Gemini client
-        # TODO: Set model name to "gemini-2.5-flash"
-        pass
+        resolved_api_key = api_key or os.getenv("GEMINI_API_KEY")
+        if not resolved_api_key:
+            raise ValueError(
+                "Gemini API key is required. Set GEMINI_API_KEY or pass api_key."
+            )
+
+        self.client = genai.Client(api_key=resolved_api_key)
+        self.model = "gemini-2.5-flash"
     
     def handle_function_call(self, function_name, parameters):
         """Handle the actual function call execution"""
-        # TODO: Handle add_numbers function
-        # TODO: Handle subtract_numbers function
-        # TODO: Return appropriate response based on function results
-        pass
+        if set(parameters) != {"num1", "num2"}:
+            raise ValueError("Function calls must include num1 and num2.")
+
+        num1 = float(parameters["num1"])
+        num2 = float(parameters["num2"])
+        if function_name == "add_numbers":
+            result = add_numbers_mock(num1, num2)
+            operator = "+"
+        elif function_name == "subtract_numbers":
+            result = subtract_numbers_mock(num1, num2)
+            operator = "-"
+        else:
+            raise ValueError(f"Unknown calculator function: {function_name}")
+
+        return f"The result of {num1} {operator} {num2} is {result}"
     
     def chat(self, user_input):
         """Main chat function that handles user input and decides whether to call functions"""
-        # TODO: Prepare the conversation context with system prompt and user input
-        # TODO: Call Gemini API to get response
-        # TODO: Use parse_function_call() to check if response contains CALL_FUNCTION pattern
-        # TODO: If function call detected, parse and execute it using handle_function_call()
-        # TODO: If no function call, return the conversational response
-        # TODO: Handle any errors gracefully
-        pass
+        fullprompt = f"{SYSTEM_PROMPT}\n\nUser: {user_input}"
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=fullprompt,
+            )
+        except Exception:
+            return (
+                "I'm sorry, I couldn't process your request because the Gemini "
+                "API request failed. Please try again."
+            )
+
+        response_text = getattr(response, "text", None)
+        if not response_text or not response_text.strip():
+            return "I didn't receive a response. Please try again."
+
+        function_name, parameters = parse_function_call(response_text)
+        if function_name is None:
+            return response_text.strip()
+
+        try:
+            return self.handle_function_call(function_name, parameters)
+        except Exception:
+            return "I'm sorry, I couldn't complete that calculation."
 
 def answer_math_query(query, assistant=None):
     """Convenient wrapper function for math queries"""
-    # TODO: Create CalculatorAssistant instance if not provided
-    # TODO: Call assistant.chat(query)
-    # TODO: Handle exceptions and return error message
-    pass
+    try:
+        if assistant is None:
+            assistant = CalculatorAssistant()
+        return assistant.chat(query)
+    except Exception:
+        return "I'm sorry, the calculator assistant could not be started."
 
 def main():
     """Main function to demonstrate the calculator assistant."""
@@ -54,8 +87,11 @@ def main():
         "What can you do?"
     ]
     
-    # TODO: Initialize assistant
-    assistant = None
+    try:
+        assistant = CalculatorAssistant()
+    except ValueError as exc:
+        print(exc)
+        return
     
     print("\n--- Sample Queries ---")
     for query in sample_queries:

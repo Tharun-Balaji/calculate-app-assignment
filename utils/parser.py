@@ -1,4 +1,12 @@
 import re
+import math
+
+
+_CALL_PATTERN = re.compile(
+    r"CALL_FUNCTION:([A-Za-z_]\w*):"
+    r"([A-Za-z_]\w*=[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+    r"(?:,[A-Za-z_]\w*=[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)*)"
+)
 
 def parse_function_call(text):
     """
@@ -10,19 +18,22 @@ def parse_function_call(text):
     Returns:
         tuple: (function_name, parameters) or (None, None) if no function call found
     """
-    # TODO: Define regex pattern to match CALL_FUNCTION format
-    
-    # TODO: Search for the pattern in the text
-    
-    # TODO: If no match found, return None, None
-    
-    # TODO: Extract function name from the match
-    
-    # TODO: Extract parameters string from the match
-    
-    # TODO: Parse parameters string into a dictionary
-    # Split by comma, then by equals sign for each parameter
-    
-    # TODO: Return function_name and parameters dictionary
-    
-    pass
+    if not isinstance(text, str):
+        return None, None
+
+    match = _CALL_PATTERN.fullmatch(text.strip())
+    if match is None:
+        return None, None
+
+    function_name, parameter_text = match.groups()
+    parameters = {}
+    for parameter in parameter_text.split(","):
+        name, value = parameter.split("=", 1)
+        if name in parameters:
+            return None, None
+        number = float(value)
+        if not math.isfinite(number):
+            return None, None
+        parameters[name] = number
+
+    return function_name, parameters
